@@ -1,0 +1,301 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <script type="text/javascript" src="http://code.jquery.com/jquery-1.10.1.min.js"></script>
+  <script type="text/javascript" src="http://cdnjs.cloudflare.com/ajax/libs/handlebars.js/2.0.0-alpha.1/handlebars.min.js"></script>
+  <link rel="stylesheet" type="text/css" href="https://developer.spotify.com/web-api/static/css/cached.css">
+  <link rel="stylesheet" type="text/css" href="mystylesheet.css"> </link>
+
+  <title>Feeltify</title>
+</head>
+
+<body>
+  <div class="container">
+    <!-- username html -->
+    <h1>
+      <a id= 'myLink'>
+        Feeltify
+      </a>
+    </h1>
+
+    <p>Describe your feeling in one word. Find related playlists and enjoy the best 30 seconds of your day. Log in with your Spotify account to save playlists of the days. </p>
+    <form id="search-form">
+        <input type="text" id="query" value="" class="form-control" placeholder="How are you feeling today?"/>
+        <input type="submit" id="search" class="btn btn-primary" value="Search" />
+    </form>
+
+    <div id="loggedin">
+        <div id="user-name"></div>
+        <div id="playlist-data"></div>
+    </div>
+    
+    <div id="login"> <a href="/login" class="btn btn-primary">Login with Spotify</a>
+    </div>
+
+    <div id="results"></div>
+</div>
+
+<!-- username and database template -->
+<script id="user-profile-template" type="text/x-handlebars-template">
+  <h6> {{date}}
+  {{day}} </h6>
+  <h6> {{name}} </h6>
+    <div style="background-image:url({{images.0.url}})" data-album-id="{{id}}" user-id="{{owner.id}}" class="cover">
+    </div>
+  
+</script>
+
+<script id="user-profile-templateNo" type="text/x-handlebars-template">
+    <h5>Welcome {{display_name}}! </h5>
+</script>
+
+
+<script id="results-template" type="text/x-handlebars-template">
+    <form id="myForm">
+    {{#each playlists.items}}
+      <div style="background-image:url({{images.0.url}})" data-album-id="{{id}}" user-id="{{owner.id}}" class="cover">      
+       <input type="radio" name="playlist" value='"{{id}}"|"{{owner.id}}"|"{{name}}"'/>
+      </div>
+    {{/each}}
+    </form>
+   
+</script>
+   
+<script id="results-templateNo" type="text/x-handlebars-template">
+      {{#each playlists.items}}
+        <div style="background-image:url({{images.0.url}})" data-album-id="{{id}}" user-id="{{owner.id}}" class="cover">
+        </div>
+      {{/each}}
+</script>
+
+
+<script type='text/javascript'>//<![CDATA[
+window.onload=function(){
+
+$('#myLink').click(function(){
+  getUserInfo();
+
+  // return false; //not sure if this is necessary
+});
+
+// find template and compile it
+var templateSource = document.getElementById('results-template').innerHTML,
+   template = Handlebars.compile(templateSource),
+   resultsPlaceholder = document.getElementById('results'),
+   playingCssClass = 'playing',
+   audioObject = null;
+
+var templateSourceNo = document.getElementById('results-templateNo').innerHTML,
+  templateNo = Handlebars.compile(templateSourceNo),
+  resultsPlaceholderNo = document.getElementById('results'),
+  playingCssClass = 'playing',
+  audioObject = null;
+
+var userProfileSource = document.getElementById('user-profile-template').innerHTML,
+    userProfileTemplate = Handlebars.compile(userProfileSource),
+    userProfilePlaceholder = document.getElementById('playlist-data');
+
+var userProfileSourceNo = document.getElementById('user-profile-templateNo').innerHTML,
+    userProfileTemplateNo = Handlebars.compile(userProfileSourceNo),
+    userProfilePlaceholderNo = document.getElementById('user-name');
+
+var searchAlbums = function (query) {
+    $('#playlist-data').hide();
+    $('#results').show(); 
+    $.ajax({
+        url: 'https://api.spotify.com/v1/search',
+        data: {
+            q: query,
+            type: 'playlist',
+            limit: 50
+        },
+        success: function (response) {
+          console.log(response); //testing
+
+          if($('#login').is(":hidden")) //logged in
+          {
+            resultsPlaceholder.innerHTML = template(response);
+          }
+          else
+          {
+            resultsPlaceholderNo.innerHTML = templateNo(response);
+          }
+        }
+    });
+};
+
+results.addEventListener('click', function (e) { 
+    var target = e.target;
+    
+    if (target.tagName.toUpperCase() === "INPUT")
+    {
+      var val = target.value.split("|");
+      if(confirm("Do you want to save this as your playlist of today?"))
+      {
+        $.ajax({
+          url: '/post',
+          data: {
+            'playlistId': val[0],
+            'userId': val[1],
+            'playlistName': val[2]
+          },
+          // type: 'POST',
+          success: function(response){
+            if(response != "null"){
+                if (confirm("You already have a playlist named " + response +" today! Do you want to update today's playlist?")){
+                    $.ajax({
+                      url: '/update',
+                      data: {
+                        'playlistId': val[0],
+                        'userId': val[1],
+                        'playlistName': val[2]
+                      },
+
+                      success: function(response){
+                        console.log(response);
+                      }
+                    });
+                }
+            }
+            else{
+                alert("This playlist was successfully added!");
+            }
+          },
+        });
+      }
+    }
+    else{
+    if (target !== null && target.classList.contains('cover')) {
+        if (target.classList.contains(playingCssClass)) {
+            audioObject.pause();
+        } else {
+            if (audioObject) {
+                audioObject.pause();
+            }
+            
+            $.ajax({
+              url: '/access',
+              data: {
+                'userId': target.getAttribute('user-id'),
+                'playlistId': target.getAttribute('data-album-id')
+              },
+              success: function (response){
+                audioObject = new Audio(response.tracks.items[0].track.preview_url);
+                audioObject.play();
+                target.classList.add(playingCssClass);
+                audioObject.addEventListener('ended', function () {
+                    target.classList.remove(playingCssClass);
+                });
+                audioObject.addEventListener('pause', function () {
+                    target.classList.remove(playingCssClass);
+                });
+              }
+            });
+           }
+        }
+      }
+      });
+
+  
+
+document.getElementById('search-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    searchAlbums(document.getElementById('query').value);
+}, false);
+
+
+
+
+//parameter access token and refresh token 
+
+        /**
+         * Obtains parameters from the hash of the URL
+         * @return Object
+         */
+        function getHashParams() {
+          var hashParams = {};
+          var e, r = /([^&;=]+)=?([^&;]*)/g,
+              q = window.location.hash.substring(1);
+          while ( e = r.exec(q)) {
+             hashParams[e[1]] = decodeURIComponent(e[2]);
+          }
+          return hashParams;
+        }
+        
+        getUserInfo();
+    
+function getUserInfo() { 
+  if ($('#playlist-data').is(":hidden")) { //clicked with search results
+    $('#playlist-data').show();
+    $('#results').hide();
+  }
+  var params = getHashParams();       
+  var access_token = params.access_token,
+      refresh_token = params.refresh_token,
+      error = params.error;
+  if (error) {
+    alert('There was an error during the authentication');
+  } else {
+    if (access_token) {
+      $.ajax({
+          url: 'https://api.spotify.com/v1/me',
+          headers: {
+            'Authorization': 'Bearer ' + access_token
+          },
+          success: showSavedPlaylist
+            // ajax call to return the user's playlist data
+            // from database          
+  });
+    } else {
+        $('#login').show();
+        $('#loggedin').hide();
+    }
+  }
+};
+
+function showSavedPlaylist(response){
+  userProfilePlaceholderNo.innerHTML = userProfileTemplateNo(response);
+  $('#login').hide();
+  $('#loggedin').show();
+  $('#playlist-data').empty(); //empty 
+
+  $.ajax({
+    url: '/get',
+    data: {
+      'userName': response.display_name,
+      'userid': response.id 
+    },
+    success: function(playlistResponse){
+      console.log(playlistResponse);
+      if (playlistResponse.length){ //user is in db 
+        playlistResponse.forEach(function(item){
+          $.ajax({
+            url: '/access',
+            data: { //double quoted data stored in db
+              'userId': item.playlistUser.replace(/"/g, ""),
+              'playlistId': item.playlistID.replace(/"/g, "")
+            },
+            success: function (response){
+              console.log(response);
+              response.day = item.day;
+              response.date = item.date;
+              
+
+              userProfilePlaceholder.innerHTML += userProfileTemplate(response); 
+        }
+        
+      });
+      });
+    }
+  
+}
+});
+}
+};    
+    </script>
+</body>
+
+</html>
+
+
