@@ -15,10 +15,10 @@ const MongoClient = require('mongodb').MongoClient;
 var db;
 var userName; //Spotify username
 var id; //Spotify user ID
-
+var mongodb_mlab = 'mongodb://tinnilarh:$&8*@ds017636.mlab.com:17636/user-playlist';
 
 var client_id = 'd9c1a61340f743abaaf1ca806d12dee6'; // Your client id
-var client_secret = '104c9c65334f4fd29fed3d3e5bc0b7c8'; // Your secret
+var client_secret = ''; // Your secret
 var redirect_uri = 'http://localhost:8888/callback'; // Your redirect uri
 
 /** get day of the week **/
@@ -241,7 +241,7 @@ app.get('/update', function(req, res){
     }, function(err, result){
       if(err) return res.send(err);
       res.send(result);
-    })
+    });
   
   });
 
@@ -260,7 +260,7 @@ app.get('/get', function(req, res){
   }); //);
 });
 
-MongoClient.connect('mongodb://tinnilarh:$&8*@ds017636.mlab.com:17636/user-playlist', function(err,database){
+MongoClient.connect(mongodb_mlab, function(err,database){
   if (err){
     return console.log(err);
   }
